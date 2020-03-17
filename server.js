@@ -8,11 +8,10 @@ import bcrypt from 'bcrypt-nodejs'
 // Defines the port the app will run on. Defaults to 8080, but can be
 // overridden when starting the server. For example:
 
-const mongoUrl = process.env.MONGO_URL || "mongodb://localhost/mendlybackend"
+const mongoUrl = process.env.MONGO_URL || 'mongodb://localhost/mendlybackend'
 mongoose.connect(mongoUrl, { useNewUrlParser: true, useUnifiedTopology: true })
 
 mongoose.Promise = Promise
-
 
 const User = mongoose.model('User', {
   username: {
@@ -31,6 +30,31 @@ const User = mongoose.model('User', {
   accessToken: {
     type: String,
     default: () => crypto.randomBytes(128).toString('hex')
+  }
+})
+
+const Assignment = mongoose.model('Assignment', {
+  situation: {
+    type: String
+  },
+  tanke: {
+    type: String
+  },
+  kansla: {
+    type: String
+  },
+  kropp: {
+    type: String
+  },
+  lukt: {
+    type: String
+  },
+  assignmentId: {
+    type: String
+  },
+  complete: {
+    type: Boolean,
+    required: true
   }
 })
 
@@ -61,7 +85,9 @@ const authenticateUser = async (req, res, next) => {
 }
 
 const authenticateAdmin = async (req, res, next) => {
-  const user = await Admin.findOne({ accessToken: req.header('Authorization') })
+  const admin = await Admin.findOne({
+    accessToken: req.header('Authorization')
+  })
   if (admin) {
     req.admin = admin
     next()
@@ -96,6 +122,57 @@ app.post('/users', async (req, res) => {
       .status(400)
       .json({ messsage: 'Could not create user', error: err.errors })
   }
+})
+
+// return all asignments for the users or something
+// app.get('/assignments', (req)
+
+// app.get('/assignemnts/:id) //
+// app.post('/assigment/:id) // give answers to the assignement
+// app.delete('/')
+
+app.post('/assignment', async (req, res) => {
+  try {
+    const {
+      situation,
+      tanke,
+      kansla,
+      lukt,
+      kropp,
+      assignmentId,
+      complete
+    } = req.body
+    const newAssignment = await new Assignment({
+      situation,
+      tanke,
+      kansla,
+      lukt,
+      kropp,
+      assignmentId,
+      complete
+    })
+    newAssignment.save()
+    res.status(201).json(newAssignment)
+  } catch (err) {
+    res
+      .status(400)
+      .json({ messsage: 'Could not create Assignment', error: err.errors })
+  }
+})
+
+// find all assignments
+app.get('/assignment', async (req, res) => {
+  const assignment = await Assignment.find()
+  res.json(assignment)
+})
+
+// sort and find specific assignments
+app.get('/assignment/:assignmentId', (req, res) => {
+  const assignmentId = req.params.assignmentId
+  console.log(`GET / assignment/${assignmentId}`)
+  Assignment.find({ assignmentId: assignmentId }).then((results) => {
+    res.json(results)
+  })
 })
 
 //create admin
@@ -141,13 +218,14 @@ app.get('/adminhome', authenticateAdmin, (req, res) => {
 
 // Rout for user logging in
 app.post('/userlogin', async (req, res) => {
+  console.log(req.body)
   const user = await User.findOne({ username: req.body.username })
   if (user && bcrypt.compareSync(req.body.password, user.password)) {
     res.json({
       username: user.username,
       userId: user._id,
       accessToken: user.accessToken,
-      message: "yaye ure in"
+      message: 'yaye ure in'
     })
   } else {
     res.status(401).json({
@@ -166,7 +244,7 @@ app.post('/adminlogin', async (req, res) => {
       adminname: admin.adminname,
       adminId: admin._id,
       accessToken: admin.accessToken,
-      message: "yaye ure in"
+      message: 'yaye ure in'
     })
   } else {
     res.status(401).json({
