@@ -5,10 +5,7 @@ import mongoose from 'mongoose'
 import crypto from 'crypto'
 import bcrypt from 'bcrypt-nodejs'
 
-// Defines the port the app will run on. Defaults to 8080, but can be
-// overridden when starting the server. For example:
-
-const mongoUrl = process.env.MONGO_URL || 'mongodb://localhost/mendlybackend'
+const mongoUrl = process.env.MONGO_URL || 'https://mendly.herokuapp.com/'
 mongoose.connect(mongoUrl, { useNewUrlParser: true, useUnifiedTopology: true })
 
 mongoose.Promise = Promise
@@ -46,15 +43,16 @@ const Assignment = mongoose.model('Assignment', {
   kropp: {
     type: String
   },
-  lukt: {
-    type: String
-  },
   assignmentId: {
     type: String
   },
   complete: {
     type: Boolean,
-    required: true
+    default: false
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
   }
 })
 
@@ -74,27 +72,7 @@ const Admin = mongoose.model('Admin', {
   }
 })
 
-const authenticateUser = async (req, res, next) => {
-  const user = await User.findOne({ accessToken: req.header('Authorization') })
-  if (user) {
-    req.user = user
-    next()
-  } else {
-    res.status(401).json({ loggedOut: true })
-  }
-}
 
-const authenticateAdmin = async (req, res, next) => {
-  const admin = await Admin.findOne({
-    accessToken: req.header('Authorization')
-  })
-  if (admin) {
-    req.admin = admin
-    next()
-  } else {
-    res.status(401).json({ loggedOut: true })
-  }
-}
 
 const port = process.env.PORT || 8080
 const app = express()
@@ -124,32 +102,26 @@ app.post('/users', async (req, res) => {
   }
 })
 
-// return all asignments for the users or something
-// app.get('/assignments', (req)
-
-// app.get('/assignemnts/:id) //
-// app.post('/assigment/:id) // give answers to the assignement
-// app.delete('/')
-
+// posting new assignment
 app.post('/assignment', async (req, res) => {
   try {
     const {
       situation,
       tanke,
       kansla,
-      lukt,
       kropp,
       assignmentId,
-      complete
+      complete,
+      createdAt,
     } = req.body
     const newAssignment = await new Assignment({
       situation,
       tanke,
       kansla,
-      lukt,
       kropp,
       assignmentId,
-      complete
+      complete,
+      createdAt,
     })
     newAssignment.save()
     res.status(201).json(newAssignment)
@@ -161,18 +133,45 @@ app.post('/assignment', async (req, res) => {
 })
 
 // find all assignments
-app.get('/assignment', async (req, res) => {
-  const assignment = await Assignment.find()
-  res.json(assignment)
+app.get('/assignments', async (req, res) => {
+  console.log('getting assignments')
+  const assignments = await Assignment.find()
+  res.json(assignments)
 })
 
-// sort and find specific assignments
-app.get('/assignment/:assignmentId', (req, res) => {
-  const assignmentId = req.params.assignmentId
-  console.log(`GET / assignment/${assignmentId}`)
-  Assignment.find({ assignmentId: assignmentId }).then((results) => {
+// Find all users
+app.get('/findusers', async (req, res) => {
+  console.log('fetching')
+  const users = await User.find()
+  res.json(users)
+})
+
+// sort and find one user
+app.get('/findusers/:accessToken', (req, res) => {
+  const accessToken = req.params.accessToken
+  console.log(`GET / user/${accessToken}`)
+  User.find({ accessToken: accessToken }).then((results) => {
     res.json(results)
   })
+})
+
+// update form by _Id
+app.put('/:_id/update', async (req, res) => {
+  try {
+    const uppdateAssignment = await Assignment.updateOne(
+      { _id: req.params._id },
+      {
+        situation: req.body.situation,
+        kropp: req.body.kropp,
+        tanke: req.body.tanke,
+        kansla: req.body.kansla,
+        complete: req.body.complete,
+      }
+    )
+    res.status(200).json({ uppdateAssignment, message: 'update' })
+  } catch (err) {
+    res.status(400).json({ message: 'could not save update', errors: err.errors })
+  }
 })
 
 //create admin
@@ -192,29 +191,7 @@ app.post('/admin', async (req, res) => {
   }
 })
 
-// Route to logged in user
-app.get('/userhome', authenticateUser, (req, res) => {
-  try {
-    res.status(200).json({
-      status: 'success',
-      message: 'ure logged in'
-    })
-  } catch (err) {
-    res.status(403).json({ message: 'Not authorized', error: err.errors })
-  }
-})
 
-// Route to logged in admin
-app.get('/adminhome', authenticateAdmin, (req, res) => {
-  try {
-    res.status(200).json({
-      status: 'success',
-      message: 'ure logged in'
-    })
-  } catch (err) {
-    res.status(403).json({ message: 'Not authorized', error: err.errors })
-  }
-})
 
 // Rout for user logging in
 app.post('/userlogin', async (req, res) => {
